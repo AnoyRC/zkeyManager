@@ -1,0 +1,18 @@
+{
+  "name": "prototype",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "ethers": "5.7",
+    "libsodium-wrappers": "^0.7.13",
+    "secrets.js-grempe": "^2.0.0",
+    "uuid": "^10.0.0"
+  }
+}
