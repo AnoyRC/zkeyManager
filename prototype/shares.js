@@ -1,5 +1,6 @@
 const { split, join } = require("shamir");
 const { randomBytes } = require("crypto");
+const HKDF = require("hkdf");
 
 const secret = "This is a secret message.";
 
@@ -39,3 +40,9 @@ const recoveredSecret = join({
   3: shares["5"],
 });
 console.log(utf8Decoder.decode(recoveredSecret));
+
+var hkdf = new HKDF("sha256", "salt123", "assword");
+hkdf.derive("Fusion", 42, function (key) {
+  // key is a Buffer, that can be serialized however one desires
+  console.log(key.toString("hex"));
+});

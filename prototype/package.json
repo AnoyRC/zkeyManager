@@ -9,8 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "crypto": "^1.0.1",
     "ethers": "5.7",
+    "hkdf": "^0.0.2",
     "libsodium-wrappers": "^0.7.13",
     "secrets.js-grempe": "^2.0.0",
     "shamir": "^0.7.1",
