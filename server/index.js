@@ -10,6 +10,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.use("/api/generate", require("./routes/api/generate"));
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
