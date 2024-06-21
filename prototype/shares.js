@@ -1,41 +1,41 @@
-const secrets = require("secrets.js-grempe");
+const { split, join } = require("shamir");
+const { randomBytes } = require("crypto");
 
-var pw = "<<PassWord123>>";
+const secret = "This is a secret message.";
 
-// convert the text into a hex string
-var pwHex = secrets.str2hex(pw); // => hex string
+const utf8Encoder = new TextEncoder();
+const utf8Decoder = new TextDecoder();
+const secretBytes = utf8Encoder.encode(secret);
 
-function stringToBinary(str) {
-  let binary = "";
-  for (let i = 0; i < str.length; i++) {
-    // Convert each character to its binary representation
-    const bin = str[i].charCodeAt(0).toString(2);
-    // Pad the binary representation to ensure each byte has 8 bits
-    binary += "00000000".slice(bin.length) + bin;
+const nonce = "anoy.fusion.id";
+
+let nonceAdditive = nonce.length;
+const customRndBytes = () => {
+  const nonceBytes = utf8Encoder.encode(nonce);
+
+  const bytes3 = new Uint32Array(3);
+
+  for (let i = 0; i < nonceBytes.length; i += 3) {
+    bytes3[0] += nonceBytes[i] + nonceAdditive;
+    if (i + 1 < nonceBytes.length) {
+      bytes3[1] += nonceBytes[i + 1] + nonceAdditive;
+    }
+    if (i + 2 < nonceBytes.length) {
+      bytes3[2] += nonceBytes[i + 2] + nonceAdditive;
+    }
   }
-  return binary;
-}
 
-secrets.setRNG(function () {
-  console.log(stringToBinary("S"));
-  return stringToBinary("Sa");
-});
+  nonceAdditive += 1;
 
-// split into 5 shares, with a threshold of 3
-var shares = secrets.share(pwHex, 5, 3);
+  return Buffer.from(bytes3);
+};
 
+const shares = split(customRndBytes, 5, 3, secretBytes);
 console.log(shares);
 
-// combine 2 shares:
-var comb = secrets.combine(shares.slice(1, 3));
-
-//convert back to UTF string:
-comb = secrets.hex2str(comb);
-console.log(comb === pw); // => false
-
-// combine 3 shares:
-comb = secrets.combine([shares[1], shares[3], shares[4]]);
-
-//convert back to UTF string:
-comb = secrets.hex2str(comb);
-console.log(comb === pw); // =>
+const recoveredSecret = join({
+  1: shares["1"],
+  2: shares["4"],
+  3: shares["5"],
+});
+console.log(utf8Decoder.decode(recoveredSecret));
