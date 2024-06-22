@@ -5,12 +5,13 @@ const ethers = require("ethers");
 const { split } = require("shamir");
 const HKDF = require("hkdf");
 const sodium = require("libsodium-wrappers");
-const { addToChainSafe } = require("../../utils/chainsafe");
+const { addToChainSafe, precheck } = require("../../utils/chainsafe");
 
 router.post("/", async (req, res) => {
   try {
     const domain = req.body.domain;
     const authSecret = req.body.authSecret;
+    const recovcerySecret = req.body.recoverySecret;
 
     var hkdf = new HKDF("sha256", process.env.SERVER_SALT, authSecret);
     hkdf.derive(domain, 42, async function (key) {
@@ -80,11 +81,76 @@ router.post("/", async (req, res) => {
           shard: ethers.utils.hexlify(bufferCipherKey.slice(shardSize * 2)),
         };
 
-        await addToChainSafe(shard1);
-        await addToChainSafe(shard2);
-        await addToChainSafe(shard3);
+        hkdf = new HKDF("sha256", process.env.SERVER_SALT, recovcerySecret);
+        hkdf.derive(domain, 42, async function (key) {
+          try {
+            const hashedRecoveryKey = key.toString("hex");
 
-        res.json({ success: true });
+            const recoveryBytes = utf8Encoder.encode(hashedRecoveryKey);
+
+            let nonceAdditive = domain.length;
+
+            const customRndBytes = () => {
+              const nonceBytes = utf8Encoder.encode(domain);
+              const bytes3 = new Uint32Array(3);
+
+              for (let i = 0; i < nonceBytes.length; i += 3) {
+                bytes3[0] += nonceBytes[i] + nonceAdditive;
+                if (i + 1 < nonceBytes.length) {
+                  bytes3[1] += nonceBytes[i + 1] + nonceAdditive;
+                }
+                if (i + 2 < nonceBytes.length) {
+                  bytes3[2] += nonceBytes[i + 2] + nonceAdditive;
+                }
+              }
+
+              nonceAdditive += 1;
+              return Buffer.from(bytes3);
+            };
+
+            const shares = split(customRndBytes, 3, 3, recoveryBytes);
+
+            const hexRecoveryShares = {
+              shard1: ethers.utils.hexlify(shares["1"]),
+              shard2: ethers.utils.hexlify(shares["2"]),
+              shard3: ethers.utils.hexlify(shares["3"]),
+            };
+
+            const recoveryShares = {
+              shard1: {
+                _id: hexRecoveryShares.shard1,
+                loc: hexShares.shard1,
+              },
+              shard2: {
+                _id: hexRecoveryShares.shard2,
+                shard: hexShares.shard2,
+              },
+              shard3: {
+                _id: hexRecoveryShares.shard3,
+                shard: hexShares.shard3,
+              },
+            };
+
+            await precheck(shard1);
+            await precheck(shard2);
+            await precheck(shard3);
+            await precheck(recoveryShares.shard1);
+            await precheck(recoveryShares.shard2);
+            await precheck(recoveryShares.shard3);
+
+            await addToChainSafe(shard1);
+            await addToChainSafe(shard2);
+            await addToChainSafe(shard3);
+            await addToChainSafe(recoveryShares.shard1);
+            await addToChainSafe(recoveryShares.shard2);
+            await addToChainSafe(recoveryShares.shard3);
+
+            res.json({ success: true });
+          } catch (error) {
+            console.error(error);
+            res.json({ success: false, error: "Internal server error" });
+          }
+        });
       } catch (error) {
         console.error(error);
         res.json({ success: false, error: "Internal server error" });

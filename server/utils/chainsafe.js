@@ -19,13 +19,48 @@ const addToChainSafe = async (shard) => {
     file.append("file", blob, "shard.json");
     file.append("path", `/${shard._id}/`);
 
-    const res1 = await axios.post(
+    const res = await axios.post(
       `https://api.chainsafe.io/api/v1/bucket/${bucketID}/upload`,
       file,
       { headers }
     );
 
-    return res1.data;
+    if (res.data.status !== "success") throw new Error(res.data.error_code);
+
+    return res.data;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+const precheck = async (shard) => {
+  try {
+    const bucketID = "9b794f51-c830-411a-ab85-4a628d33b4b3";
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CHAINSAFE_API_KEY}`,
+    };
+
+    const body = {
+      is_update: false,
+      files_meta: [
+        {
+          path: `/${shard._id}/shard.json`,
+        },
+      ],
+    };
+
+    const res = await axios.post(
+      `https://api.chainsafe.io/api/v1/bucket/${bucketID}/check-upload`,
+      body,
+      { headers }
+    );
+
+    console.log(res.data);
+
+    if (res.data.status !== "success") throw new Error(res.data.error_code);
+
+    return res.data;
   } catch (error) {
     throw new Error(error.message);
   }
@@ -33,4 +68,5 @@ const addToChainSafe = async (shard) => {
 
 module.exports = {
   addToChainSafe,
+  precheck,
 };
