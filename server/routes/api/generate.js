@@ -13,6 +13,12 @@ router.post("/", async (req, res) => {
     const authSecret = req.body.authSecret;
     const recovcerySecret = req.body.recoverySecret;
 
+    // Check for required fields
+    if (!domain || !authSecret || !recovcerySecret) {
+      return res.json({ success: false, error: "Missing required fields" });
+    }
+
+    // Initializing HKDF with the server salt and the auth secret
     var hkdf = new HKDF("sha256", process.env.SERVER_SALT, authSecret);
     hkdf.derive(domain, 42, async function (key) {
       try {
@@ -23,6 +29,7 @@ router.post("/", async (req, res) => {
 
         let nonceAdditive = domain.length;
 
+        // Custom random bytes generator based on the domain
         const customRndBytes = () => {
           const nonceBytes = utf8Encoder.encode(domain);
           const bytes3 = new Uint32Array(3);
@@ -41,6 +48,7 @@ router.post("/", async (req, res) => {
           return Buffer.from(bytes3);
         };
 
+        // Split the secret into 3 shares using Shamir's Secret Sharing
         const shares = split(customRndBytes, 3, 3, secretBytes);
         const hexShares = {
           shard1: ethers.utils.hexlify(shares["1"]),
@@ -48,11 +56,13 @@ router.post("/", async (req, res) => {
           shard3: ethers.utils.hexlify(shares["3"]),
         };
 
+        // Generate a random wallet
         const wallet = ethers.Wallet.createRandom();
         const privateKey = wallet.privateKey.toString();
 
         await sodium.ready;
 
+        // Encrypt the private key using libsodium
         const nonce = Buffer.from(process.env.KEYGEN_SALT);
         const encryptionKey = ethers.utils.toUtf8Bytes(
           process.env.KEYGEN_ENCRYPT_KEY
@@ -64,8 +74,11 @@ router.post("/", async (req, res) => {
           encryptionKey
         );
 
+        // Split the encrypted private key into 3 shares
         const bufferCipherKey = Buffer.from(cipherKey);
         const shardSize = Math.floor(bufferCipherKey.length / 3);
+
+        // Create the shares to be uploaded to ChainSafe
         const shard1 = {
           _id: hexShares.shard1,
           shard: ethers.utils.hexlify(bufferCipherKey.slice(0, shardSize)),
@@ -81,6 +94,7 @@ router.post("/", async (req, res) => {
           shard: ethers.utils.hexlify(bufferCipherKey.slice(shardSize * 2)),
         };
 
+        // Split the recovery secret into 3 shares using Shamir's Secret Sharing
         hkdf = new HKDF("sha256", process.env.SERVER_SALT, recovcerySecret);
         hkdf.derive(domain, 42, async function (key) {
           try {
@@ -108,6 +122,7 @@ router.post("/", async (req, res) => {
               return Buffer.from(bytes3);
             };
 
+            // Split the recovery secret into 3 shares using Shamir's Secret Sharing
             const shares = split(customRndBytes, 3, 3, recoveryBytes);
 
             const hexRecoveryShares = {
@@ -116,6 +131,7 @@ router.post("/", async (req, res) => {
               shard3: ethers.utils.hexlify(shares["3"]),
             };
 
+            // Create the recovery shares to be uploaded to ChainSafe
             const recoveryShares = {
               shard1: {
                 _id: hexRecoveryShares.shard1,
@@ -123,14 +139,15 @@ router.post("/", async (req, res) => {
               },
               shard2: {
                 _id: hexRecoveryShares.shard2,
-                shard: hexShares.shard2,
+                loc: hexShares.shard2,
               },
               shard3: {
                 _id: hexRecoveryShares.shard3,
-                shard: hexShares.shard3,
+                loc: hexShares.shard3,
               },
             };
 
+            // Checking if the shares can be uploaded to ChainSafe
             await precheck(shard1);
             await precheck(shard2);
             await precheck(shard3);
@@ -138,6 +155,7 @@ router.post("/", async (req, res) => {
             await precheck(recoveryShares.shard2);
             await precheck(recoveryShares.shard3);
 
+            // Uploading the shares to ChainSafe
             await addToChainSafe(shard1);
             await addToChainSafe(shard2);
             await addToChainSafe(shard3);

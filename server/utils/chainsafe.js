@@ -25,10 +25,12 @@ const addToChainSafe = async (shard) => {
       { headers }
     );
 
-    if (res.data.status !== "success") throw new Error(res.data.error_code);
+    if (res.data.files_details[0].status !== "success")
+      throw new Error(res.data.error_code);
 
     return res.data;
   } catch (error) {
+    console.log(error);
     throw new Error(error.message);
   }
 };
@@ -56,9 +58,34 @@ const precheck = async (shard) => {
       { headers }
     );
 
-    console.log(res.data);
-
     if (res.data.status !== "success") throw new Error(res.data.error_code);
+
+    return res.data;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+const getFile = async (shardID) => {
+  try {
+    const bucketID = "9b794f51-c830-411a-ab85-4a628d33b4b3";
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CHAINSAFE_API_KEY}`,
+      "Content-Type": "application/json",
+    };
+
+    const body = {
+      path: `/${shardID}/shard.json`,
+    };
+
+    const res = await axios.post(
+      `https://api.chainsafe.io/api/v1/bucket/${bucketID}/download`,
+      body,
+      { headers }
+    );
+
+    if (!res.data.shard) throw new Error("Shard not found");
 
     return res.data;
   } catch (error) {
@@ -69,4 +96,5 @@ const precheck = async (shard) => {
 module.exports = {
   addToChainSafe,
   precheck,
+  getFile,
 };

@@ -11,6 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/generate", require("./routes/api/generate"));
+app.use("/api/utils", require("./routes/api/utils"));
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
