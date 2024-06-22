@@ -93,8 +93,70 @@ const getFile = async (shardID) => {
   }
 };
 
+const addPasskeyToChainSafe = async (registration) => {
+  try {
+    const bucketID = "dd0a45bd-51c9-4789-923b-b9b5255a2d28";
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CHAINSAFE_API_KEY}`,
+      "Content-Type": "multipart/form-data",
+    };
+
+    const file = new FormData();
+
+    const blob = new Blob([JSON.stringify(registration)], {
+      type: "application/json",
+    });
+
+    file.append("file", blob, "credential.json");
+    file.append("path", `/${registration.credential.id}/`);
+
+    const res = await axios.post(
+      `https://api.chainsafe.io/api/v1/bucket/${bucketID}/upload`,
+      file,
+      { headers }
+    );
+
+    if (res.data.files_details[0].status !== "success")
+      throw new Error(res.data.error_code);
+
+    return res.data;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+const getPasskey = async (credentialId) => {
+  try {
+    const bucketID = "dd0a45bd-51c9-4789-923b-b9b5255a2d28";
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CHAINSAFE_API_KEY}`,
+      "Content-Type": "application/json",
+    };
+
+    const body = {
+      path: `/${credentialId}/credential.json`,
+    };
+
+    const res = await axios.post(
+      `https://api.chainsafe.io/api/v1/bucket/${bucketID}/download`,
+      body,
+      { headers }
+    );
+
+    if (!res.data.authenticatorData) throw new Error("Passkey not found");
+
+    return res.data;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
 module.exports = {
   addToChainSafe,
   precheck,
   getFile,
+  addPasskeyToChainSafe,
+  getPasskey,
 };

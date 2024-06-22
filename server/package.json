@@ -9,15 +9,18 @@
   "author": "AnoyRoyChowdhury",
   "license": "ISC",
   "dependencies": {
+    "@passwordless-id/webauthn": "^1.6.1",
     "axios": "^1.7.2",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
     "ethers": "5.7",
     "express": "^4.19.2",
+    "express-oauth2-jwt-bearer": "^1.6.0",
     "hkdf": "^0.0.2",
     "libsodium-wrappers": "^0.7.13",
     "nodemon": "^3.1.4",
-    "shamir": "^0.7.1"
+    "shamir": "^0.7.1",
+    "uuid": "^10.0.0"
   }
 }

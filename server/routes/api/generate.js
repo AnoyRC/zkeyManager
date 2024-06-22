@@ -5,7 +5,14 @@ const ethers = require("ethers");
 const { split } = require("shamir");
 const HKDF = require("hkdf");
 const sodium = require("libsodium-wrappers");
-const { addToChainSafe, precheck } = require("../../utils/chainsafe");
+const {
+  addToChainSafe,
+  precheck,
+  addPasskeyToChainSafe,
+  getPasskey,
+} = require("../../utils/chainsafe");
+const { v4: uuidv4 } = require("uuid");
+globalThis.crypto ??= require("node:crypto").webcrypto;
 
 router.post("/", async (req, res) => {
   try {
@@ -174,6 +181,96 @@ router.post("/", async (req, res) => {
         res.json({ success: false, error: "Internal server error" });
       }
     });
+  } catch (error) {
+    console.error(error);
+    res.json({ success: false, error: "Internal server error" });
+  }
+});
+
+router.get("/passkey/challenge", async (req, res) => {
+  try {
+    const challenge = uuidv4();
+
+    res.json({ success: true, challenge });
+  } catch (error) {
+    console.error(error);
+    res.json({ success: false, error: "Internal server error" });
+  }
+});
+
+router.post("/passkey/add", async (req, res) => {
+  try {
+    const registration = req.body.registration;
+    const challenge = req.body.challenge;
+
+    // Check for required fields
+    if (!registration || !challenge) {
+      return res.json({ success: false, error: "Missing required fields" });
+    }
+
+    const expected = {
+      challenge,
+      origin: "http://localhost:3000",
+    };
+
+    await import("@passwordless-id/webauthn")
+      .then(async (res) => {
+        const { server } = res;
+        const { verifyRegistration } = server;
+
+        const verified = await verifyRegistration(registration, expected);
+
+        if (!verified) throw new Error("Invalid registration");
+      })
+      .catch((err) => {
+        throw new Error(err);
+      });
+
+    await addPasskeyToChainSafe(registration);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.json({ success: false, error: "Internal server error" });
+  }
+});
+
+router.post("/passkey/authenticate", async (req, res) => {
+  try {
+    const authentication = req.body.authentication;
+    const challenge = req.body.challenge;
+
+    // Check for required fields
+    if (!authentication || !challenge) {
+      return res.json({ success: false, error: "Missing required fields" });
+    }
+
+    const passkey = await getPasskey(authentication.credentialId);
+
+    const expected = {
+      challenge: challenge,
+      origin: "http://localhost:3000",
+      userVerified: true,
+    };
+
+    await import("@passwordless-id/webauthn")
+      .then(async (res) => {
+        const { server } = res;
+        const { verifyAuthentication } = server;
+
+        const verified = await verifyAuthentication(
+          authentication,
+          passkey.credential,
+          expected
+        );
+
+        if (!verified) throw new Error("Invalid authentication");
+      })
+      .catch((err) => {
+        throw new Error(err);
+      });
+
+    res.json({ success: true });
   } catch (error) {
     console.error(error);
     res.json({ success: false, error: "Internal server error" });
