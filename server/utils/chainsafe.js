@@ -85,7 +85,7 @@ const getFile = async (shardID) => {
       { headers }
     );
 
-    if (!res.data.shard) throw new Error("Shard not found");
+    if (!res.data._id) throw new Error("Shard not found");
 
     return res.data;
   } catch (error) {
@@ -153,10 +153,71 @@ const getPasskey = async (credentialId) => {
   }
 };
 
+const deleteShard = async (shardId) => {
+  try {
+    const bucketID = "9b794f51-c830-411a-ab85-4a628d33b4b3";
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CHAINSAFE_API_KEY}`,
+      "Content-Type": "application/json",
+    };
+
+    const body = {
+      paths: [`/${shardId}/shard.json`],
+    };
+
+    const res = await axios.post(
+      `https://api.chainsafe.io/api/v1/bucket/${bucketID}/rm`,
+      body,
+      { headers }
+    );
+
+    return res;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+const updateFile = async (shard) => {
+  try {
+    const bucketID = "9b794f51-c830-411a-ab85-4a628d33b4b3";
+
+    const headers = {
+      Authorization: `Bearer ${process.env.CHAINSAFE_API_KEY}`,
+      "Content-Type": "multipart/form-data",
+    };
+
+    const file = new FormData();
+
+    const blob = new Blob([JSON.stringify(shard)], {
+      type: "application/json",
+    });
+
+    file.append("file", blob, "shard.json");
+    file.append("path", `/${shard._id}/`);
+
+    const res = await axios.patch(
+      `https://api.chainsafe.io/api/v1/bucket/${bucketID}/upload`,
+      file,
+      { headers }
+    );
+
+    if (res.data.files_details[0].status !== "success")
+      throw new Error(res.data.error_code);
+
+    return res.data;
+  } catch (error) {
+    console.log(error);
+    throw new Error(error.message);
+  }
+};
+
 module.exports = {
   addToChainSafe,
   precheck,
   getFile,
   addPasskeyToChainSafe,
   getPasskey,
+  deleteShard,
+  updateFile,
 };

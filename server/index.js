@@ -12,6 +12,7 @@ app.use(express.json());
 
 app.use("/api/generate", require("./routes/api/generate"));
 app.use("/api/utils", require("./routes/api/utils"));
+app.use("/api/recover", require("./routes/api/recover"));
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
