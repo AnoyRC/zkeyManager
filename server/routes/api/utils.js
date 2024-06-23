@@ -6,16 +6,26 @@ const { split } = require("shamir");
 const HKDF = require("hkdf");
 const sodium = require("libsodium-wrappers");
 const { getFile } = require("../../utils/chainsafe");
+const { resolveAuthentication } = require("../../helpers/resolve");
 
 router.post("/pubkey", async (req, res) => {
   try {
     const domain = req.body.domain;
-    const authSecret = req.body.authSecret;
+    const authentication = req.body.authentication;
+    const challenge = req.body.challenge;
 
     // Check for required fields
-    if (!domain || !authSecret) {
+    if (!domain || !authentication || !challenge) {
       return res.json({ success: false, error: "Missing required fields" });
     }
+
+    const expected = {
+      challenge,
+      origin: "http://localhost:3000",
+      userVerified: true,
+    };
+
+    const authSecret = await resolveAuthentication(authentication, expected);
 
     // Initializing HKDF with the server salt and the auth secret
     var hkdf = new HKDF("sha256", process.env.SERVER_SALT, authSecret);
@@ -97,13 +107,22 @@ router.post("/pubkey", async (req, res) => {
 router.post("/sign", async (req, res) => {
   try {
     const domain = req.body.domain;
-    const authSecret = req.body.authSecret;
+    const authentication = req.body.authentication;
+    const challenge = req.body.challenge;
     const payload = req.body.payload;
 
     // Check for required fields
-    if (!domain || !authSecret || !payload) {
+    if (!domain || !authentication || !challenge || !payload) {
       return res.json({ success: false, error: "Missing required fields" });
     }
+
+    const expected = {
+      challenge,
+      origin: "http://localhost:3000",
+      userVerified: true,
+    };
+
+    const authSecret = await resolveAuthentication(authentication, expected);
 
     // Initializing HKDF with the server salt and the auth secret
     var hkdf = new HKDF("sha256", process.env.SERVER_SALT, authSecret);

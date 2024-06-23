@@ -5,26 +5,35 @@ const ethers = require("ethers");
 const { split } = require("shamir");
 const HKDF = require("hkdf");
 const sodium = require("libsodium-wrappers");
-const {
-  addToChainSafe,
-  precheck,
-  addPasskeyToChainSafe,
-  getPasskey,
-} = require("../../utils/chainsafe");
+const { addToChainSafe, precheck } = require("../../utils/chainsafe");
 const { v4: uuidv4 } = require("uuid");
 globalThis.crypto ??= require("node:crypto").webcrypto;
 const { auth } = require("express-oauth2-jwt-bearer");
+const { resolveRegistration, resolveAuth0 } = require("../../helpers/resolve");
 
-router.post("/", async (req, res) => {
+const checkJwt = auth({
+  audience: "https://test.api",
+  issuerBaseURL: `https://dev-pekknv1gkulrlnlq.us.auth0.com/`,
+});
+
+router.post("/", checkJwt, async (req, res) => {
   try {
     const domain = req.body.domain;
-    const authSecret = req.body.authSecret;
-    const recovcerySecret = req.body.recoverySecret;
+    const registration = req.body.registration;
+    const challenge = req.body.challenge;
 
     // Check for required fields
-    if (!domain || !authSecret || !recovcerySecret) {
+    if (!domain || !registration || !challenge) {
       return res.json({ success: false, error: "Missing required fields" });
     }
+
+    const expected = {
+      challenge,
+      origin: "http://localhost:3000",
+    };
+
+    const authSecret = await resolveRegistration(registration, expected);
+    const recoverySecret = await resolveAuth0(req.auth);
 
     // Initializing HKDF with the server salt and the auth secret
     var hkdf = new HKDF("sha256", process.env.SERVER_SALT, authSecret);
@@ -103,7 +112,7 @@ router.post("/", async (req, res) => {
         };
 
         // Split the recovery secret into 3 shares using Shamir's Secret Sharing
-        hkdf = new HKDF("sha256", process.env.SERVER_SALT, recovcerySecret);
+        hkdf = new HKDF("sha256", process.env.SERVER_SALT, recoverySecret);
         hkdf.derive(domain, 42, async function (key) {
           try {
             const hashedRecoveryKey = key.toString("hex");
@@ -197,98 +206,6 @@ router.get("/passkey/challenge", async (req, res) => {
     console.error(error);
     res.json({ success: false, error: "Internal server error" });
   }
-});
-
-router.post("/passkey/add", async (req, res) => {
-  try {
-    const registration = req.body.registration;
-    const challenge = req.body.challenge;
-
-    // Check for required fields
-    if (!registration || !challenge) {
-      return res.json({ success: false, error: "Missing required fields" });
-    }
-
-    const expected = {
-      challenge,
-      origin: "http://localhost:3000",
-    };
-
-    await import("@passwordless-id/webauthn")
-      .then(async (res) => {
-        const { server } = res;
-        const { verifyRegistration } = server;
-
-        const verified = await verifyRegistration(registration, expected);
-
-        if (!verified) throw new Error("Invalid registration");
-      })
-      .catch((err) => {
-        throw new Error(err);
-      });
-
-    registration.credential.nonce = uuidv4();
-
-    await addPasskeyToChainSafe(registration.credential);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    res.json({ success: false, error: "Internal server error" });
-  }
-});
-
-router.post("/passkey/authenticate", async (req, res) => {
-  try {
-    const authentication = req.body.authentication;
-    const challenge = req.body.challenge;
-
-    // Check for required fields
-    if (!authentication || !challenge) {
-      return res.json({ success: false, error: "Missing required fields" });
-    }
-
-    const credential = await getPasskey(authentication.credentialId);
-
-    const expected = {
-      challenge: challenge,
-      origin: "http://localhost:3000",
-      userVerified: true,
-    };
-
-    await import("@passwordless-id/webauthn")
-      .then(async (res) => {
-        const { server } = res;
-        const { verifyAuthentication } = server;
-
-        const verified = await verifyAuthentication(
-          authentication,
-          credential,
-          expected
-        );
-
-        if (!verified) throw new Error("Invalid authentication");
-      })
-      .catch((err) => {
-        throw new Error(err);
-      });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    res.json({ success: false, error: "Internal server error" });
-  }
-});
-
-const checkJwt = auth({
-  audience: "https://test.api",
-  issuerBaseURL: `https://dev-pekknv1gkulrlnlq.us.auth0.com/`,
-});
-
-router.get("/auth0", checkJwt, (req, res) => {
-  const auth = req.auth;
-  console.log(auth);
-  res.json({ success: true });
 });
 
 module.exports = router;
