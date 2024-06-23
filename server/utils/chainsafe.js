@@ -109,7 +109,7 @@ const addPasskeyToChainSafe = async (registration) => {
     });
 
     file.append("file", blob, "credential.json");
-    file.append("path", `/${registration.credential.id}/`);
+    file.append("path", `/${registration.id}/`);
 
     const res = await axios.post(
       `https://api.chainsafe.io/api/v1/bucket/${bucketID}/upload`,
@@ -145,7 +145,7 @@ const getPasskey = async (credentialId) => {
       { headers }
     );
 
-    if (!res.data.authenticatorData) throw new Error("Passkey not found");
+    if (!res.data.id) throw new Error("Passkey not found");
 
     return res.data;
   } catch (error) {

@@ -13,6 +13,7 @@ const {
 } = require("../../utils/chainsafe");
 const { v4: uuidv4 } = require("uuid");
 globalThis.crypto ??= require("node:crypto").webcrypto;
+const { auth } = require("express-oauth2-jwt-bearer");
 
 router.post("/", async (req, res) => {
   try {
@@ -226,7 +227,9 @@ router.post("/passkey/add", async (req, res) => {
         throw new Error(err);
       });
 
-    await addPasskeyToChainSafe(registration);
+    registration.credential.nonce = uuidv4();
+
+    await addPasskeyToChainSafe(registration.credential);
 
     res.json({ success: true });
   } catch (error) {
@@ -245,7 +248,7 @@ router.post("/passkey/authenticate", async (req, res) => {
       return res.json({ success: false, error: "Missing required fields" });
     }
 
-    const passkey = await getPasskey(authentication.credentialId);
+    const credential = await getPasskey(authentication.credentialId);
 
     const expected = {
       challenge: challenge,
@@ -260,7 +263,7 @@ router.post("/passkey/authenticate", async (req, res) => {
 
         const verified = await verifyAuthentication(
           authentication,
-          passkey.credential,
+          credential,
           expected
         );
 
@@ -275,6 +278,17 @@ router.post("/passkey/authenticate", async (req, res) => {
     console.error(error);
     res.json({ success: false, error: "Internal server error" });
   }
+});
+
+const checkJwt = auth({
+  audience: "https://test.api",
+  issuerBaseURL: `https://dev-pekknv1gkulrlnlq.us.auth0.com/`,
+});
+
+router.get("/auth0", checkJwt, (req, res) => {
+  const auth = req.auth;
+  console.log(auth);
+  res.json({ success: true });
 });
 
 module.exports = router;
